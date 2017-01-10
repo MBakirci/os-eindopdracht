@@ -6,8 +6,15 @@
 #include <sys/mman.h>
 #include <fcntl.h>
 #include <unistd.h>
+#include <mqueue.h>
+#include <signal.h>
+#include <string.h>
 
+#define QUEUE_NAME "/my_queue"
+#define PRIORITY 1
 #define SIZE 1024
+
+bool quit = false;
 
 typedef struct {
   bool D_UP;              //!< D-Pad up
@@ -38,9 +45,29 @@ typedef struct {
                           //!-32768 to 32767
 } Button;
 
+typedef struct { char command[255]; } Command;
+
+void sigHandler(int sig) { quit = true; }
+
 int main(void) {
   void *vaddr;
   int shm_fd = 0;
+  Command my_command;
+
+  mq_unlink(QUEUE_NAME);
+  mqd_t ds;
+  struct mq_attr queue_attr;
+  queue_attr.mq_maxmsg =
+      1; /* max. number of messages in queue at the same time */
+  queue_attr.mq_msgsize = SIZE; /* max. message size */
+
+  if ((ds = mq_open(QUEUE_NAME, O_CREAT | O_RDWR, 0600, &queue_attr)) ==
+      (mqd_t)-1) {
+    perror("Creating queue error");
+    return -1;
+  }
+  printf("Opened\n");
+  signal(SIGINT, sigHandler);
 
   Button *button;
 
@@ -69,7 +96,7 @@ int main(void) {
   }
 
   char *data;
-  char command[256];
+  char command[255];
   printf("%s%c%c\n", "Content-Type:text/html;charset=iso-8859-1", 13, 10);
   printf("<TITLE>! -- XBOX CONTROLLER -- !</TITLE>\n");
   printf("<H3>! -- XBOX CONTROLLER -- !</H3>\n");
@@ -80,6 +107,17 @@ int main(void) {
     sscanf(data, "command=%s", command);
     printf("<P>The command is %s", command);
     button = (Button *)vaddr;
+    printf("<P>voor mq_send");
+    strcpy(my_command.command, command);
+    if (mq_send(ds, (const char *)&my_command, sizeof(my_command) + 1, 0) ==
+        -1) {
+      printf("<P>Sending message error\n");
+      return -1;
+    } else {
+      printf("%s", command);
+    }
+    printf("<P>Na mq_send");
+
     if (button->LOGO) {
       printf("LOGO button ingedrukt");
     }
