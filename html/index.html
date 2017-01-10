@@ -1,11 +1,19 @@
 <!DOCTYPE html>
 <html lang="en">
-  <head>
-    <title></title>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-  </head>
-  <body>
-  
-  </body>
+
+<head>
+  <title>! -- XBOX CONTROLLER -- !</title>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+</head>
+
+<body>
+  <form action="http://192.168.1.100/cgi-bin/xbox.cgi" method="get" target="commandFrame">
+    <input type="radio" name="command" value="ledOn" checked> Led<br>
+    <input type="radio" name="command" value="rumble"> Rumble<br>
+    <input type="submit" value="Submit">
+  </form>
+  <iframe name="commandFrame"></iframe>
+</body>
+
 </html>
