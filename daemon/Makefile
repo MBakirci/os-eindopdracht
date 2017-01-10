@@ -1,5 +1,5 @@
-CC 	= arm-linux-gcc
-CFLAGS 	= -O2 -Wall -Werror
+CC 	= gcc
+CFLAGS 	= -O2 -Wall -Werror -lrt -lpthread
 LDFLAGS = -lusb-1.0
 SOURCES = main.c
 OBJECTS = $(SOURCES:.c=.o)
