@@ -1,3 +1,5 @@
 *.o
 xboxcontroller
 xbox.cgi
+.idea
+.idea/vcs.xml

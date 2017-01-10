@@ -5,9 +5,18 @@
 #include <stdbool.h>
 #include <sys/stat.h>
 #include "syslog.h"
+#include <mqueue.h>
+#include <signal.h>
+#include <time.h>
+#include "string.h"
+
+#define QUEUE_NAME  "/my_queue"
+#define PRIORITY     1
+#define SIZE        1024
 
 bool rumbled = false;
 bool ledjeson = false;
+bool quit = false;
 
 typedef struct
 {
@@ -107,7 +116,7 @@ void rumble(libusb_device_handle *handle)
     if (rumbled)
     {
 	printf("trillleeeen");
-	unsigned char rumble[8] = {0x00, 0x08, 0x00, 0x55, 0x55, 0x00, 0x00, 0x00};
+	unsigned char rumble[8] = {0x00, 0x08, 0x00, 0x11, 0x11, 0x00, 0x00, 0x00};
 	libusb_interrupt_transfer(handle, (1 | LIBUSB_ENDPOINT_OUT), rumble, 8, &written, 0);
 	rumbled = false;
     }
@@ -143,6 +152,7 @@ void leds(libusb_device_handle *handle)
 	ledjeson = true;
     }
 }
+void sigHandler();
 
 int main(int argc, char *argv[])
 {
@@ -150,7 +160,10 @@ int main(int argc, char *argv[])
     libusb_device_handle *handle;
     pid_t pid, sid;
     pid =fork();
-    if (pid < 0) { exit(EXIT_FAILURE); }
+    if (pid < 0) {
+		printf("process_id of child process %d \n", pid);
+		exit(EXIT_FAILURE);
+	}
 
     //We got a good pid, Close the Parent Process
     if (pid > 0) { exit(EXIT_SUCCESS); }
@@ -180,97 +193,38 @@ int main(int argc, char *argv[])
     }
     printf("\nDruk op een knop of beweeg met een stick.(LOGO is modus veranderen)\n");
     Buttons buttons;
-    bool run = true;
-    while (run)
+    mqd_t ds;
+    if ((ds = mq_open(QUEUE_NAME, O_RDWR, 0600, NULL)) == (mqd_t) -1) {
+        perror("Creating queue error");
+        return -1;
+    }
+
+    signal(SIGINT,sigHandler);
+    struct timespec ts = {time(0) + 5, 0};
+    char command[256];
+    while (!quit)
     {
 	inputs(handle, &buttons);
-	if (buttons.D_UP)
-	{
-	    printf("D-pad up button ingedrukt\n");
-	}
-	if (buttons.D_DOWN)
-	{
-	    printf("D-pad down button ingedrukt\n");
-	}
-	if (buttons.D_LEFT)
-	{
-	    printf("D-pad left button ingedrukt\n");
-	}
-	if (buttons.D_RIGHT)
-	{
-	    printf("D-pad right button ingedrukt\n");
-	}
-	if (buttons.START)
-	{
-	    printf("Start button ingedrukt\n");
-	}
-	if (buttons.BACK)
-	{
-	    printf("back button ingedrukt\n");
-	    leds(handle);
-	}
-	if (buttons.LS_PRESS)
-	{
-	    printf("LS button ingedrukt\n");
-	}
-	if (buttons.RS_PRESS)
-	{
-	    printf("RS button ingedrukt\n");
-	}
-	if (buttons.LB)
-	{
-	    printf("LB button ingedrukt\n");
-	}
-	if (buttons.RB)
-	{
-	    printf("RB button ingedrukt\n");
-	}
-	if (buttons.LOGO)
-	{
-	    printf("LOGO button ingedrukt\n");
-		rumble(handle);
-	}
-	if (buttons.A)
-	{
-	    printf("A button ingedrukt\n");
-	}
-	if (buttons.B)
-	{
-	    printf("B button ingedrukt\n");
-	}
-	if (buttons.X)
-	{
-	    printf("X button ingedrukt\n");
-	}
-	if (buttons.Y)
-	{
-	    printf("Y button ingedrukt\n");
-	}
+        if (mq_timedreceive(ds, command, SIZE, 0,&ts) == -1) {
+            perror("cannot receive");
+            return -1;
+        }
+        if(strcmp(command, "rumble") == 0 ) {
+            rumble(handle);
+        }
+        if(strcmp(command, "ledOn") == 0 )
+        {
+            leds(handle);
+        }
 
-	if (buttons.Left_trigger > 0)
-	{
-	    printf("Left trigger value = %d\n", buttons.Left_trigger);
-	}
-	if (buttons.Right_trigger > 0)
-	{
-	    printf("Right trigger value = %d\n", buttons.Right_trigger);
-	}
-	if (abs(buttons.Left_stick_X) > 2000)
-	{
-	    printf("Left-X value = %d\n", buttons.Left_stick_X);
-	}
-	if (abs(buttons.Left_stick_Y) > 2000)
-	{
-	    printf("Left-Y value = %d\n", buttons.Left_stick_Y);
-	}
-	if (abs(buttons.Right_stick_X) > 2000)
-	{
-	    printf("Right-X value = %d\n", buttons.Right_stick_X);
-	}
-	if (abs(buttons.Right_stick_Y) > 2000)
-	{
-	    printf("Right-Y value = %d\n", buttons.Right_stick_Y);
-	}
     }
+    /* Close queue... */
+    if (mq_close(ds) == -1)
+        perror("Closing queue error");
     return (0);
+}
+
+void sigHandler()
+{
+    quit = false;
 }
