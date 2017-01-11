@@ -1,0 +1,14 @@
+#!/bin/sh
+#
+# Start the xboxcontroller daemon....
+#
+
+case "$1" in
+	start)
+		/bin/./xboxcontroller ;;
+	stop)
+		killall xboxcontroller ;;
+	restart) 
+  	killall xboxcontroller 
+		/bin/./xboxcontroller ;;
+esac

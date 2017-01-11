@@ -54,7 +54,7 @@ int main(void) {
   int shm_fd = 0;
   Command my_command;
 
-  mq_unlink(QUEUE_NAME);
+  // mq_unlink(QUEUE_NAME);
   mqd_t ds;
   struct mq_attr queue_attr;
   queue_attr.mq_maxmsg =
@@ -105,18 +105,18 @@ int main(void) {
     printf("<P>Error! Error in passing data from form to script.");
   } else {
     sscanf(data, "command=%s", command);
+    data = NULL;
     printf("<P>The command is %s", command);
     button = (Button *)vaddr;
-    printf("<P>voor mq_send");
     strcpy(my_command.command, command);
     if (mq_send(ds, (const char *)&my_command, sizeof(my_command) + 1, 0) ==
         -1) {
       printf("<P>Sending message error\n");
       return -1;
-    } else {
-      printf("%s", command);
     }
-    printf("<P>Na mq_send");
+
+    if (mq_close(ds) == -1) perror("Closing queue error");
+    // mq_unlink(QUEUE_NAME);
 
     if (button->LOGO) {
       printf("LOGO button ingedrukt");

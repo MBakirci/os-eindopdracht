@@ -48,9 +48,7 @@ typedef struct {
                           //!-32768 to 32767
 } Buttons;
 
-typedef struct {
-  char command[255];
-} Command;
+typedef struct { char command[255]; } Command;
 
 int inputs(libusb_device_handle *handle, Buttons *buttons) {
   uint8_t input[20];
@@ -116,27 +114,24 @@ int inputs(libusb_device_handle *handle, Buttons *buttons) {
   return result;
 }
 
-void rumble(libusb_device_handle *handle) {
+void rumble(libusb_device_handle *handle, bool on) {
   int written = 0;
 
-  if (rumbled) {
+  if (on) {
     printf("trillleeeen");
     unsigned char rumble[8] = {0x00, 0x08, 0x00, 0x55, 0x55, 0x00, 0x00, 0x00};
     libusb_interrupt_transfer(handle, (1 | LIBUSB_ENDPOINT_OUT), rumble, 8,
                               &written, 0);
-    rumbled = false;
   } else {
     unsigned char rumble[8] = {0x00, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
     libusb_interrupt_transfer(handle, (1 | LIBUSB_ENDPOINT_OUT), rumble, 8,
                               &written, 0);
-    rumbled = true;
   }
 }
 
-void leds(libusb_device_handle *handle) {
-  int written;
-
-  if (ledjeson) {
+void leds(libusb_device_handle *handle, bool on) {
+  int written = 0;
+  if (on) {
     printf("ledjes draaaien");
     unsigned char data[3];
     data[0] = 0x01;
@@ -144,7 +139,6 @@ void leds(libusb_device_handle *handle) {
     data[2] = 0x0A;
     libusb_interrupt_transfer(handle, (1 | LIBUSB_ENDPOINT_OUT), data, 3,
                               &written, 0);
-    ledjeson = false;
   } else {
     unsigned char data[3];
     data[0] = 0x01;
@@ -152,7 +146,6 @@ void leds(libusb_device_handle *handle) {
     data[2] = 0x00;
     libusb_interrupt_transfer(handle, (1 | LIBUSB_ENDPOINT_OUT), data, 3,
                               &written, 0);
-    ledjeson = true;
   }
 }
 void sigHandler();
@@ -209,39 +202,43 @@ int main(int argc, char *argv[]) {
   fprintf(fp, "voor ds\n");
   fflush(fp);
   mqd_t ds;
-  if ((ds = mq_open(QUEUE_NAME, O_RDWR, 0600, NULL)) == (mqd_t)-1) {
-    perror("Creating queue error");
-    return -1;
-  }
   fprintf(fp, "voor signal\n");
   fflush(fp);
 
   signal(SIGINT, sigHandler);
-//   char command[255];
+  //   char command[255];
   fprintf(fp, "voor while loop\n");
   fflush(fp);
+  if ((ds = mq_open(QUEUE_NAME, O_RDONLY, 0600, NULL)) == (mqd_t)-1) {
+    perror("Creating queue error");
+  }
 
   while (!quit) {
     // inputs(handle, &buttons);
-    struct timespec ts = {time(0) + 5, 0};
-    if (mq_timedreceive(ds,(char *) &my_command, SIZE, 0, &ts) == -1) {
-      perror("cannot receive");
-      return -1;
+
+    struct timespec ts;
+    clock_gettime(CLOCK_REALTIME, &ts);
+    ts.tv_sec += 1;
+    if (mq_timedreceive(ds, (char *)&my_command, SIZE, 0, &ts) > 0) {
+      // perror("cannot receive");
+      // return -1;
+      if (strcmp(my_command.command, "rumble") == 0) {
+        leds(handle, false);
+        rumble(handle, true);
+        // sleep(5);
+        // my_command.command[0] = 0;
+      }
+      if (strcmp(my_command.command, "ledOn") == 0) {
+        rumble(handle, false);
+        leds(handle, true);
+        // sleep(5);
+        // my_command.command[0] = 0;
+      }
     }
-    if (strcmp(my_command.command, "rumble\n") == 0) {
-      fprintf(fp, my_command.command);
-      fflush(fp);
-      rumble(handle);
-    }
-    if (strcmp(my_command.command, "ledOn\n") == 0) {
-      fprintf(fp, my_command.command);
-      fflush(fp);
-      leds(handle);
-    }
-    // command[0] = 0;
   }
   /* Close queue... */
   if (mq_close(ds) == -1) perror("Closing queue error");
+  mq_unlink(QUEUE_NAME);
   fclose(fp);
   return (0);
 }
